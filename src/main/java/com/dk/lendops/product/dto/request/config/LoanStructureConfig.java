@@ -1,6 +1,7 @@
 package com.dk.lendops.product.dto.request.config;
 
-import jakarta.validation.constraints.NotBlank;
+import com.dk.lendops.loan.enums.LoanStructureType;
+import jakarta.validation.constraints.NotNull;
 import lombok.*;
 
 /**
@@ -16,6 +17,6 @@ import lombok.*;
 @NoArgsConstructor(access = AccessLevel.PRIVATE)
 public class LoanStructureConfig {
 
-    @NotBlank(message = "Loan structure type is required")
-    private String structureType;
+    @NotNull(message = "Loan structure type is required")
+    private LoanStructureType structureType;
 }
