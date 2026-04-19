@@ -1,5 +1,6 @@
 package com.dk.lendops.product.service.impl;
 
+import com.dk.lendops.common.exception.BusinessException;
 import com.dk.lendops.product.dto.request.CreateProductRequest;
 import com.dk.lendops.product.dto.request.config.*;
 import com.dk.lendops.product.dto.response.ProductResponse;
@@ -42,7 +43,10 @@ public class ProductServiceImpl implements ProductService {
 
         // Prevent duplicate product creation by code
         if (productRepository.existsByCode(request.getCode())) {
-            throw new IllegalArgumentException("Product with code " + request.getCode() + " already exists");
+            throw new BusinessException(
+                    409,
+                    "Product already exists!",
+                    "Product with code " + request.getCode() + " already exists!");
         }
 
         Product product = Product.builder()
@@ -63,7 +67,10 @@ public class ProductServiceImpl implements ProductService {
 
                 // Ensure each config type appears only once per request
                 if (!seenConfigTypes.add(configRequest.getConfigType())) {
-                    throw new IllegalArgumentException("Duplicate config type: " + configRequest.getConfigType());
+                    throw new BusinessException(
+                            409,
+                            "Duplicate config type!",
+                            "Duplicate config type: " + configRequest.getConfigType());
                 }
 
                 // Convert incoming raw payload into a strongly typed config
@@ -95,7 +102,11 @@ public class ProductServiceImpl implements ProductService {
     public ProductResponse getProductByCode(final Map<String, String> headers, final String code) {
 
         Product product = productRepository.findByCode(code)
-                .orElseThrow(() -> new IllegalArgumentException("Product not found"));
+                .orElseThrow(() -> new BusinessException(
+                        404,
+                        "Product not found!",
+                        "Product with code " + code + " not found!"));
+
 
         var configResponses = productConfigRepository.findByProductIdAndActiveTrue(product.getId()).stream()
                 // Ensure consistent ordering in API response
@@ -167,7 +178,11 @@ public class ProductServiceImpl implements ProductService {
             final Map<String, String> headers, final String code, final UpdateProductConfigRequest request) {
 
         Product product = productRepository.findByCode(code)
-                .orElseThrow(() -> new IllegalArgumentException("Product not found"));
+                .orElseThrow(() -> new BusinessException(
+                        404,
+                        "Product not found!",
+                        "Product with code " + code + " not found!"));
+
 
         // Convert and validate incoming config
         Object typedConfig = mapTypedConfig(request.getConfigType(), request.getConfig());
@@ -248,12 +263,12 @@ public class ProductServiceImpl implements ProductService {
 
         if (typedConfig instanceof TenureConfig tenure) {
             if (tenure.getMinimumValue() > tenure.getMaximumValue()) {
-                throw new IllegalArgumentException("Minimum tenure cannot be greater than maximum tenure");
+                throw new BusinessException(400, "Minimum tenure cannot be greater than maximum tenure!");
             }
 
             if (tenure.getDefaultValue() < tenure.getMinimumValue()
                     || tenure.getDefaultValue() > tenure.getMaximumValue()) {
-                throw new IllegalArgumentException("Default tenure must be within minimum and maximum range");
+                throw new BusinessException(400, "Default tenure must be within minimum and maximum range");
             }
         }
 
@@ -272,7 +287,7 @@ public class ProductServiceImpl implements ProductService {
      */
     private void validateFeeValueWhenEnabled(final FeeDetailConfig feeDetail, final String feeName) {
         if (feeDetail != null && Boolean.TRUE.equals(feeDetail.getEnabled()) && feeDetail.getValue() == null) {
-            throw new IllegalArgumentException(feeName + " value is required when enabled");
+            throw new BusinessException(400, feeName + " value is required when enabled");
         }
     }
 
@@ -290,7 +305,10 @@ public class ProductServiceImpl implements ProductService {
                     .findFirst()
                     .orElse("Invalid config payload");
 
-            throw new IllegalArgumentException("Invalid " + config.getClass().getSimpleName() + ": " + message);
+            throw new BusinessException(
+                    400,
+                    "Invalid configuration",
+                    "Invalid " + config.getClass().getSimpleName() + ": " + message);
         }
     }
 }

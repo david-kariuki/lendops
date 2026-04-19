@@ -38,15 +38,15 @@ public class GlobalExceptionHandler {
     public ApiResponse<Void> handleValidationException(MethodArgumentNotValidException exception) {
         log.error("Validation failed", exception);
 
-        // Get exact technical message for cases where I am using annotated validations, e.g., Jakarta
-        String technicalMessage = exception.getBindingResult().getFieldErrors().stream()
+        // Get exact Detailed message for cases where I am using annotated validations, e.g., Jakarta
+        String detailedMessage = exception.getBindingResult().getFieldErrors().stream()
                 .findFirst()
                 .map(DefaultMessageSourceResolvable::getDefaultMessage)
                 .orElse("Validation failed!");
 
         return apiResponseBuilder.failure(
                 400,
-                technicalMessage,
+                detailedMessage,
                 "Sorry, request could not be processed!");
     }
 
@@ -58,5 +58,15 @@ public class GlobalExceptionHandler {
                 500,
                 exception.getMessage(),
                 "Sorry, something went terribly wrong!");
+    }
+
+    @ExceptionHandler(BusinessException.class)
+    @ResponseStatus(HttpStatus.CONFLICT)
+    public ApiResponse<Void> handleBusinessException(BusinessException exception) {
+        log.error(exception.getDetailedMessage(), exception);
+        return apiResponseBuilder.failure(
+                exception.getResponseCode(),
+                exception.getDetailedMessage(),
+                exception.getMessage());
     }
 }

@@ -31,8 +31,8 @@ public class ApiResponseBuilder {
                 .header(ResponseHeader.builder()
                         .requestRefId(requestRefId)
                         .responseCode(200)
-                        .technicalMessage("Success")
-                        .customerMessage("Request executed successfully")
+                        .detailedMessage("Success")
+                        .message("Request executed successfully")
                         .timestamp(LocalDateTime.now())
                         .build())
                 .body(body)
@@ -42,24 +42,23 @@ public class ApiResponseBuilder {
     /**
      * Builds a failure response
      *
-     * @param code             Response code
-     * @param technicalMessage Technical message
-     * @param customerMessage  Customer message
-     * @param <T>              Type
+     * @param code            Response code
+     * @param detailedMessage Detailed message
+     * @param message         message
+     * @param <T>             Type
      * @return ApiResponse
      */
-    public <T> ApiResponse<T> failure(int code, String technicalMessage, String customerMessage) {
+    public <T> ApiResponse<T> failure(int code, String detailedMessage, String message) {
 
         String requestRefId = generateRefId();
         log.debug("Failure response, requestRefId={}, code={}", requestRefId, code);
-
 
         return ApiResponse.<T>builder()
                 .header(ResponseHeader.builder()
                         .requestRefId(requestRefId)
                         .responseCode(code)
-                        .technicalMessage(technicalMessage)
-                        .customerMessage(customerMessage)
+                        .detailedMessage(detailedMessage)
+                        .message(message)
                         .timestamp(LocalDateTime.now())
                         .build())
                 .body(null)
