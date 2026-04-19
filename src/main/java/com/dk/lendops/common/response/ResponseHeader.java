@@ -17,7 +17,7 @@ public class ResponseHeader {
 
     private String requestRefId;
     private int responseCode;
-    private String technicalMessage;
-    private String customerMessage;
+    private String message;
+    private String detailedMessage;
     private LocalDateTime timestamp;
 }
