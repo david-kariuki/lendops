@@ -1,0 +1,7 @@
+ALTER TABLE loan
+    ADD COLUMN amount_paid DECIMAL(19, 2) NOT NULL DEFAULT 0.00,
+    ADD COLUMN outstanding_amount DECIMAL(19,2) NOT NULL DEFAULT 0.00;
+
+ALTER TABLE loan_installment
+    ADD COLUMN amount_paid DECIMAL(19, 2) NOT NULL DEFAULT 0.00,
+    ADD COLUMN outstanding_amount DECIMAL(19,2) NOT NULL DEFAULT 0.00;
