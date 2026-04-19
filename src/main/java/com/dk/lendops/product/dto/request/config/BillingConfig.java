@@ -1,6 +1,7 @@
 package com.dk.lendops.product.dto.request.config;
 
-import jakarta.validation.constraints.NotBlank;
+import com.dk.lendops.product.enums.BillingType;
+import jakarta.validation.constraints.NotNull;
 import lombok.*;
 
 /**
@@ -16,6 +17,6 @@ import lombok.*;
 @NoArgsConstructor(access = AccessLevel.PRIVATE)
 public class BillingConfig {
 
-    @NotBlank(message = "Billing type is required")
-    private String billingType;
+    @NotNull(message = "Billing type is required!")
+    private BillingType billingType;
 }

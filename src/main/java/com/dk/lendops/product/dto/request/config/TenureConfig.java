@@ -1,6 +1,6 @@
 package com.dk.lendops.product.dto.request.config;
 
-import jakarta.validation.constraints.NotBlank;
+import com.dk.lendops.product.enums.TenureUnit;
 import jakarta.validation.constraints.NotNull;
 import jakarta.validation.constraints.Positive;
 import lombok.*;
@@ -30,6 +30,6 @@ public class TenureConfig {
     @Positive(message = "Default tenure value must be greater than zero")
     private Integer defaultValue;
 
-    @NotBlank(message = "Tenure unit is required")
-    private String unit;
+    @NotNull(message = "Tenure unit is required")
+    private TenureUnit unit;
 }
