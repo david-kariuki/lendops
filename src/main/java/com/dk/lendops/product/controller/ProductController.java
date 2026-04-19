@@ -7,6 +7,7 @@ import com.dk.lendops.product.dto.request.config.UpdateProductConfigRequest;
 import com.dk.lendops.product.dto.response.ProductResponse;
 import com.dk.lendops.product.service.ProductService;
 import io.swagger.v3.oas.annotations.Operation;
+import io.swagger.v3.oas.annotations.tags.Tag;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.MediaType;
@@ -21,6 +22,7 @@ import java.util.Map;
  * @author David Kariuki
  * @see ProductService Product service
  */
+@Tag(name = "Product APIs")
 @RestController
 @RequestMapping(
         value = ProductController.BASE_PATH,
