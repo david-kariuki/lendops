@@ -31,4 +31,9 @@ public interface LoanService {
      * @return Loan response
      */
     LoanResponse getLoanByRef(Map<String, String> headers, String loanRef);
+
+    /**
+     * Processes overdue loans and installments
+     */
+    void processOverdueLoans();
 }

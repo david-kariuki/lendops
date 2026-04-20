@@ -129,6 +129,7 @@ public class LoanServiceImpl implements LoanService {
                 .status(LoanStatus.OPEN)
                 .amountPaid(BigDecimal.ZERO)
                 .outstandingAmount(totalRepayableAmount)
+                .lateFeeApplied(false)
                 .build();
 
         Loan savedLoan = loanRepository.save(loan);
@@ -165,6 +166,28 @@ public class LoanServiceImpl implements LoanService {
         List<LoanInstallment> installments = loanInstallmentRepository.findByLoanId(loan.getId());
 
         return mapResponse(loan, installments);
+    }
+
+    /**
+     * Processes overdue loans and installments
+     */
+    @Override
+    @Transactional
+    public void processOverdueLoans() {
+
+        List<Loan> openLoans = loanRepository.findByStatus(LoanStatus.OPEN);
+
+        for (Loan loan : openLoans) {
+
+            // Lump sum loans don't have installments, so overdue is checked at loan level
+            if (loan.getLoanStructureType() == LoanStructureType.LUMP_SUM) {
+                processLumpSumOverdueLoan(loan);
+                continue;
+            }
+
+            // Installment loans are checked installment by installment
+            processInstallmentOverdueLoans(loan);
+        }
     }
 
     /**
@@ -306,6 +329,7 @@ public class LoanServiceImpl implements LoanService {
                     .status(InstallmentStatus.PENDING)
                     .amountPaid(BigDecimal.ZERO)
                     .outstandingAmount(totalAmount)
+                    .lateFeeApplied(false)
                     .build();
 
             // Update the running totals before moving to the next installment
@@ -389,5 +413,169 @@ public class LoanServiceImpl implements LoanService {
             case WEEKS -> disbursedAt.plusWeeks(installmentNumber);
             case MONTHS -> disbursedAt.plusMonths(installmentNumber);
         };
+    }
+
+    /**
+     * Processes overdue check for lump sum loan
+     *
+     * @param loan Loan
+     */
+    private void processLumpSumOverdueLoan(final Loan loan) {
+
+        // Check if loan has outstanding amount and due date has passed
+        if (loan.getOutstandingAmount().compareTo(BigDecimal.ZERO) > 0
+                && loan.getDueDate().isBefore(LocalDateTime.now())) {
+
+            FeesConfig feesConfig = loadFeesConfig(loan.getProduct().getId());
+
+            if (loan.getStatus() != LoanStatus.OVERDUE) {
+                loan.setStatus(LoanStatus.OVERDUE);
+            }
+
+            applyLateFeeToLumpSumLoan(loan, feesConfig); // Apply late fees
+            loanRepository.save(loan);
+
+            log.debug("Marked lump sum loan {} as overdue", loan.getLoanRef());
+        }
+    }
+
+    /**
+     * Processes overdue check for installment loan
+     *
+     * @param loan Loan
+     */
+    private void processInstallmentOverdueLoans(final Loan loan) {
+
+        List<LoanInstallment> installments = loanInstallmentRepository
+                .findByLoanIdOrderByInstallmentNumberAsc(loan.getId());
+
+        FeesConfig feesConfig = loadFeesConfig(loan.getProduct().getId());
+        boolean hasOverdueInstallment = false;
+
+        for (LoanInstallment installment : installments) {
+
+            // Only unpaid installments past due date should become overdue
+            if (installment.getOutstandingAmount().compareTo(BigDecimal.ZERO) > 0
+                    && installment.getDueDate().isBefore(LocalDateTime.now())) {
+
+                if (installment.getStatus() != InstallmentStatus.OVERDUE) {
+                    installment.setStatus(InstallmentStatus.OVERDUE);
+                }
+
+                applyLateFeeToInstallment(installment, feesConfig);
+                loanInstallmentRepository.save(installment);
+                hasOverdueInstallment = true;
+
+                log.debug("Marked installment {} for loan {} as overdue",
+                        installment.getInstallmentNumber(), loan.getLoanRef());
+            }
+        }
+
+        if (hasOverdueInstallment) {
+            loan.setStatus(LoanStatus.OVERDUE);
+
+            // Align loan balance with current installment balances
+            // Start from zero, keep adding each value in the stream
+            BigDecimal totalOutstandingAmount = installments.stream()
+                    .map(LoanInstallment::getOutstandingAmount)
+                    .reduce(BigDecimal.ZERO, BigDecimal::add);
+
+            BigDecimal totalRepayableAmount = installments.stream()
+                    .map(LoanInstallment::getTotalAmount)
+                    .reduce(BigDecimal.ZERO, BigDecimal::add);
+
+            loan.setOutstandingAmount(totalOutstandingAmount);
+            loan.setTotalRepayableAmount(totalRepayableAmount);
+
+            loanRepository.save(loan);
+
+            log.debug("Marked installment loan {} as overdue", loan.getLoanRef());
+        }
+    }
+
+    /**
+     * Loads fees config for a given product
+     *
+     * @param productId Product ID
+     * @return Fees config
+     */
+    private FeesConfig loadFeesConfig(final Long productId) {
+
+        return productConfigRepository.findByProductIdAndConfigTypeAndActiveTrue(productId, ConfigType.FEES)
+                .map(productConfig ->
+                        productConfigMapper.fromJson(productConfig.getConfigJson(), FeesConfig.class))
+                .orElse(null);
+    }
+
+    /**
+     * Applies late fee to lump sum loan once
+     *
+     * @param loan       Loan
+     * @param feesConfig Fees configuration
+     */
+    private void applyLateFeeToLumpSumLoan(final Loan loan, final FeesConfig feesConfig) {
+
+        if (feesConfig == null || feesConfig.getLateFee() == null) {
+            return; // No fee
+        }
+
+        FeeDetailConfig lateFee = feesConfig.getLateFee();
+        if (!Boolean.TRUE.equals(lateFee.getEnabled()) || lateFee.getValue() == null) {
+            return; // No fee
+        }
+
+        if (Boolean.TRUE.equals(loan.getLateFeeApplied())) {
+            return; // Late fee already applied
+        }
+
+        BigDecimal lateFeeAmount = switch (lateFee.getCalculationType()) {
+            case "FIXED" -> BigDecimal.valueOf(lateFee.getValue());
+            case "PERCENTAGE" -> loan.getOutstandingAmount()
+                    .multiply(BigDecimal.valueOf(lateFee.getValue()))
+                    .divide(BigDecimal.valueOf(100), 2, BigDecimal.ROUND_HALF_UP);
+            default -> throw new BusinessException(400, "Unsupported late fee calculation type");
+        };
+
+        // Add fee to both repayable and outstanding balances
+        loan.setTotalRepayableAmount(loan.getTotalRepayableAmount().add(lateFeeAmount));
+        loan.setOutstandingAmount(loan.getOutstandingAmount().add(lateFeeAmount));
+        loan.setLateFeeApplied(true);
+
+        log.debug("Applied late fees to loan {} since it is overdue", loan.getLoanRef());
+    }
+
+    /**
+     * Applies late fee to installment once
+     *
+     * @param installment Loan installment
+     * @param feesConfig  Fees configuration
+     */
+    private void applyLateFeeToInstallment(final LoanInstallment installment, final FeesConfig feesConfig) {
+
+        if (feesConfig == null || feesConfig.getLateFee() == null) {
+            return; // No fee
+        }
+
+        FeeDetailConfig lateFee = feesConfig.getLateFee();
+        if (!Boolean.TRUE.equals(lateFee.getEnabled()) || lateFee.getValue() == null) {
+            return; // No fee
+        }
+
+        if (Boolean.TRUE.equals(installment.getLateFeeApplied())) {
+            return; // Late fee already applied
+        }
+
+        BigDecimal lateFeeAmount = switch (lateFee.getCalculationType()) {
+            case "FIXED" -> BigDecimal.valueOf(lateFee.getValue());
+            case "PERCENTAGE" -> installment.getOutstandingAmount()
+                    .multiply(BigDecimal.valueOf(lateFee.getValue()))
+                    .divide(BigDecimal.valueOf(100), 2, BigDecimal.ROUND_HALF_UP);
+            default -> throw new BusinessException(400, "Unsupported late fee calculation type");
+        };
+
+        // Add the fee to the installment balance once when it first becomes overdue
+        installment.setTotalAmount(installment.getTotalAmount().add(lateFeeAmount));
+        installment.setOutstandingAmount(installment.getOutstandingAmount().add(lateFeeAmount));
+        installment.setLateFeeApplied(true);
     }
 }

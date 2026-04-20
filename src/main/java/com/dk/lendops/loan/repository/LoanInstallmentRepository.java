@@ -19,4 +19,12 @@ public interface LoanInstallmentRepository extends JpaRepository<LoanInstallment
      * @return List of installments
      */
     List<LoanInstallment> findByLoanId(Long loanId);
+
+    /**
+     * Finds installments for a loan ordered by installment number
+     *
+     * @param loanId Loan ID
+     * @return List of installments
+     */
+    List<LoanInstallment> findByLoanIdOrderByInstallmentNumberAsc(Long loanId);
 }

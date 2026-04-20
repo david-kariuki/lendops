@@ -53,6 +53,9 @@ public class LoanInstallment {
     @Column(name = "outstanding_amount", nullable = false, precision = 19, scale = 2)
     private BigDecimal outstandingAmount;
 
+    @Column(name = "late_fee_applied", nullable = false)
+    private Boolean lateFeeApplied;
+
     @Column(name = "created_at", nullable = false)
     private LocalDateTime createdAt;
 
