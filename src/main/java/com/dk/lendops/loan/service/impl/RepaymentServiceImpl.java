@@ -14,6 +14,8 @@ import com.dk.lendops.loan.repository.LoanInstallmentRepository;
 import com.dk.lendops.loan.repository.LoanRepository;
 import com.dk.lendops.loan.repository.RepaymentRepository;
 import com.dk.lendops.loan.service.RepaymentService;
+import com.dk.lendops.notification.enums.NotificationType;
+import com.dk.lendops.notification.service.NotificationService;
 import jakarta.transaction.Transactional;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -40,6 +42,7 @@ public class RepaymentServiceImpl implements RepaymentService {
     private final RepaymentRepository repaymentRepository;
     private final LoanRepository loanRepository;
     private final LoanInstallmentRepository loanInstallmentRepository;
+    private final NotificationService notificationService;
 
     /**
      * Creates repayment
@@ -160,6 +163,14 @@ public class RepaymentServiceImpl implements RepaymentService {
                         .status(installment.getStatus().name())
                         .build())
                 .toList();
+
+        // Send notification
+        notificationService.createNotification(
+                loan.getCustomer().getCustomerRef(),
+                loan.getLoanRef(),
+                loan.getCustomer().getEmailAddress(),
+                "Repayment of " + savedRepayment.getAmountPaid() + " has been received for loan " + loan.getLoanRef() + ".",
+                NotificationType.REPAYMENT_RECEIVED);
 
         return RepaymentResponse.builder()
                 .repaymentRef(savedRepayment.getRepaymentRef())
