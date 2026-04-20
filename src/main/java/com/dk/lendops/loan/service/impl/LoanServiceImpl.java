@@ -16,6 +16,8 @@ import com.dk.lendops.loan.enums.LoanStructureType;
 import com.dk.lendops.loan.repository.LoanInstallmentRepository;
 import com.dk.lendops.loan.repository.LoanRepository;
 import com.dk.lendops.loan.service.LoanService;
+import com.dk.lendops.notification.enums.NotificationType;
+import com.dk.lendops.notification.service.NotificationService;
 import com.dk.lendops.product.dto.request.config.*;
 import com.dk.lendops.product.entity.Product;
 import com.dk.lendops.product.entity.ProductConfig;
@@ -24,7 +26,6 @@ import com.dk.lendops.product.enums.TenureUnit;
 import com.dk.lendops.product.repository.ProductConfigRepository;
 import com.dk.lendops.product.repository.ProductRepository;
 import com.dk.lendops.product.service.impl.ProductConfigMapper;
-import jakarta.servlet.Servlet;
 import jakarta.transaction.Transactional;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -54,7 +55,8 @@ public class LoanServiceImpl implements LoanService {
     private final ProductRepository productRepository;
     private final ProductConfigRepository productConfigRepository;
     private final ProductConfigMapper productConfigMapper;
-    private final Servlet servlet;
+
+    private final NotificationService notificationService;
 
     /**
      * Creates loan
@@ -142,6 +144,14 @@ public class LoanServiceImpl implements LoanService {
         }
 
         log.debug("Created loan {}", savedLoan.getLoanRef());
+
+        // Send notification
+        notificationService.createNotification(
+                customer.getCustomerRef(),
+                savedLoan.getLoanRef(),
+                customer.getEmailAddress(),
+                "Your loan " + savedLoan.getLoanRef() + " has been created successfully.",
+                NotificationType.LOAN_CREATED);
 
         return mapResponse(savedLoan, installments);
     }
@@ -430,6 +440,15 @@ public class LoanServiceImpl implements LoanService {
 
             if (loan.getStatus() != LoanStatus.OVERDUE) {
                 loan.setStatus(LoanStatus.OVERDUE);
+
+                // Send notification
+                notificationService.createNotification(
+                        loan.getCustomer().getCustomerRef(),
+                        loan.getLoanRef(),
+                        loan.getCustomer().getEmailAddress(),
+                        "Your loan " + loan.getLoanRef() + " is overdue.",
+                        NotificationType.LOAN_OVERDUE);
+
             }
 
             applyLateFeeToLumpSumLoan(loan, feesConfig); // Apply late fees
@@ -472,7 +491,17 @@ public class LoanServiceImpl implements LoanService {
         }
 
         if (hasOverdueInstallment) {
-            loan.setStatus(LoanStatus.OVERDUE);
+
+            if (loan.getStatus() != LoanStatus.OVERDUE) {
+
+                loan.setStatus(LoanStatus.OVERDUE);
+                notificationService.createNotification(
+                        loan.getCustomer().getCustomerRef(),
+                        loan.getLoanRef(),
+                        loan.getCustomer().getEmailAddress(),
+                        "Your loan " + loan.getLoanRef() + " has overdue installment(s).",
+                        NotificationType.LOAN_OVERDUE);
+            }
 
             // Align loan balance with current installment balances
             // Start from zero, keep adding each value in the stream
