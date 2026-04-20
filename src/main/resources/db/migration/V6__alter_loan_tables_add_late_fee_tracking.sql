@@ -1,0 +1,5 @@
+ALTER TABLE loan
+    ADD COLUMN late_fee_applied BOOLEAN NOT NULL DEFAULT FALSE;
+
+ALTER TABLE loan_installment
+    ADD COLUMN late_fee_applied BOOLEAN NOT NULL DEFAULT FALSE;
