@@ -397,7 +397,7 @@ These are not required to understand the current implementation, but they are na
 #### Postman Collection
 
 Import below collection;
->
+> https://api.postman.com/collections/29677428-fed3641a-305b-449c-9cea-8a9eee1d6c78?access_key=PMAT-01KPN3X98Z92T5XR4H4WB3WN0A
 
 The project has been tested with Postman using:
 
